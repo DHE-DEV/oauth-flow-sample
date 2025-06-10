@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 Flow Demonstration</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-shield-alt"></i> OAuth2 Flow Demonstration</h1>
+            <p>Visualisierung des OAuth2 Authorization Code Flow mit PKCE</p>
+        </header>
+
+        <!-- Schritt-Anzeige -->
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="step active" id="step-1">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Konfiguration</div>
+                </div>
+                <div class="step" id="step-2">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Authorization</div>
+                </div>
+                <div class="step" id="step-3">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Callback</div>
+                </div>
+                <div class="step" id="step-4">
+                    <div class="step-number">4</div>
+                    <div class="step-title">Token Exchange</div>
+                </div>
+                <div class="step" id="step-5">
+                    <div class="step-number">5</div>
+                    <div class="step-title">Fertig</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schritt 1: OAuth2 Konfiguration -->
+        <div class="card show" id="config-section">
+            <h2><i class="fas fa-cog"></i> Schritt 1: OAuth2 Konfiguration</h2>
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <strong>Passolution OAuth2 Integration:</strong> 
+                Die Felder sind bereits mit den Passolution-API Endpunkten vorgefüllt. 
+                Geben Sie Ihre Client ID und Client Secret ein, um zu beginnen.
+            </div>
+            <form id="oauth-config-form">
+                <div class="form-group">
+                    <label for="client-id">Client ID:</label>
+                    <input type="text" id="client-id" required placeholder="Ihre OAuth2 Client ID">
+                </div>
+                
+                <div class="form-group">
+                    <label for="client-secret">Client Secret:</label>
+                    <input type="password" id="client-secret" required placeholder="Ihr OAuth2 Client Secret">
+                    <small>Wird nur für den Token-Austausch verwendet und nicht gespeichert</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="auth-url">Authorization URL:</label>
+                    <input type="url" id="auth-url" required placeholder="https://example.com/oauth/authorize" value="https://web.passolution.eu/en/oauth/authorize">
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-url">Token URL:</label>
+                    <input type="url" id="token-url" required placeholder="https://example.com/oauth/token" value="https://web.passolution.eu/en/oauth/token">
+                </div>
+                
+                <div class="form-group">
+                    <label for="redirect-uri">Redirect URI:</label>
+                    <select id="redirect-uri-select" onchange="updateRedirectUri()">
+                        <option value="https://api-client-oauth2-example.passolution.de/oauth/callback">Passolution Domain (empfohlen)</option>
+                        <option value="https://pdsoauth2sample.eu-1.sharedwithexpose.com/oauth/callback">Alternative Domain</option>
+                        <option value="http://localhost:3000/oauth/callback">Lokale Entwicklung</option>
+                        <option value="custom">Benutzerdefiniert</option>
+                    </select>
+                    <input type="url" id="redirect-uri" required placeholder="https://yourdomain.com/oauth/callback" value="https://api-client-oauth2-example.passolution.de/oauth/callback">
+                    <small id="redirect-info">Diese URI muss in Ihrer OAuth2-App-Konfiguration registriert sein</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="scope">Scope (optional):</label>
+                    <input type="text" id="scope" placeholder="read write" value="">
+                    <small>Lassen Sie dieses Feld leer für Standard-Scope</small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-play"></i> OAuth2 Flow starten
+                </button>
+            </form>
+        </div>
+
+        <!-- Schritt 2: Authorization URL -->
+        <div class="card hidden" id="auth-section">
+            <h2><i class="fas fa-link"></i> Schritt 2: Authorization</h2>
+            <p>Die Authorization URL wurde generiert. Klicken Sie auf den Link, um den Benutzer zu autorisieren:</p>
+            
+            <div class="url-display">
+                <input type="text" id="auth-url-display" readonly>
+                <button type="button" class="btn btn-secondary" onclick="copyToClipboard('auth-url-display')">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            
+            <div class="auth-info">
+                <p><strong>State:</strong> <span id="state-display"></span></p>
+                <p><strong>Code Challenge:</strong> <span id="code-challenge-display"></span></p>
+            </div>
+            
+            <button type="button" class="btn btn-primary" id="open-auth-url">
+                <i class="fas fa-external-link-alt"></i> Authorization URL öffnen
+            </button>
+        </div>
+
+        <!-- Schritt 3: Callback verarbeiten -->
+        <div class="card hidden" id="callback-section">
+            <h2><i class="fas fa-exchange-alt"></i> Schritt 3: Authorization Callback</h2>
+            <p>Fügen Sie hier die Callback-Parameter ein, die Sie nach der Authorization erhalten haben:</p>
+            
+            <form id="callback-form">
+                <div class="form-group">
+                    <label for="callback-code">Authorization Code:</label>
+                    <input type="text" id="callback-code" required placeholder="Der Authorization Code aus der Callback URL">
+                </div>
+                
+                <div class="form-group">
+                    <label for="callback-state">State:</label>
+                    <input type="text" id="callback-state" required placeholder="Der State Parameter aus der Callback URL">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check"></i> Callback verarbeiten
+                </button>
+            </form>
+        </div>
+
+        <!-- Schritt 4: Token Exchange -->
+        <div class="card hidden" id="token-section">
+            <h2><i class="fas fa-key"></i> Schritt 4: Token Exchange</h2>
+            <p>Der Authorization Code wird nun gegen Access Token und Refresh Token getauscht:</p>
+            
+            <button type="button" class="btn btn-primary" id="exchange-token-btn">
+                <i class="fas fa-sync-alt"></i> Token austauschen
+            </button>
+            
+            <div class="token-info hidden" id="token-info">
+                <h3>Erhaltene Tokens:</h3>
+                <div class="token-display">
+                    <label>Access Token:</label>
+                    <div class="token-field">
+                        <input type="text" id="access-token-display" readonly>
+                        <button type="button" class="btn btn-secondary" onclick="copyToClipboard('access-token-display')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="token-display">
+                    <label>Refresh Token:</label>
+                    <div class="token-field">
+                        <input type="text" id="refresh-token-display" readonly>
+                        <button type="button" class="btn btn-secondary" onclick="copyToClipboard('refresh-token-display')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="token-meta">
+                    <p><strong>Token Type:</strong> <span id="token-type-display"></span></p>
+                    <p><strong>Expires In:</strong> <span id="expires-in-display"></span> Sekunden</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schritt 5: Fertig & Export -->
+        <div class="card hidden" id="complete-section">
+            <h2><i class="fas fa-check-circle"></i> OAuth2 Flow abgeschlossen!</h2>
+            <p>Der OAuth2 Flow wurde erfolgreich durchgeführt. Sie können nun die Tokens verwenden oder exportieren:</p>
+            
+            <div class="action-buttons">
+                <button type="button" class="btn btn-success" id="refresh-token-btn">
+                    <i class="fas fa-refresh"></i> Token aktualisieren
+                </button>
+                
+                <button type="button" class="btn btn-info" id="export-tokens-btn">
+                    <i class="fas fa-envelope"></i> Tokens per E-Mail senden
+                </button>
+                
+                <button type="button" class="btn btn-warning" id="reset-flow-btn">
+                    <i class="fas fa-redo"></i> Neuen Flow starten
+                </button>
+            </div>
+        </div>
+
+        <!-- E-Mail Export Modal -->
+        <div class="modal hidden" id="email-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-envelope"></i> Token-Daten per E-Mail senden</h3>
+                    <button type="button" class="close-btn" onclick="closeModal('email-modal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Kopieren Sie den folgenden Text und senden Sie ihn per E-Mail:</p>
+                    <textarea id="email-content" readonly rows="15"></textarea>
+                    <button type="button" class="btn btn-primary" onclick="copyToClipboard('email-content')">
+                        <i class="fas fa-copy"></i> In Zwischenablage kopieren
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status-Anzeige -->
+        <div class="status-bar">
+            <div class="status" id="status-display">
+                <i class="fas fa-info-circle"></i> Bereit für OAuth2 Flow
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden" id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Verarbeitung läuft...</p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

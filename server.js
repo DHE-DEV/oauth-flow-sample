@@ -7,13 +7,25 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Security Headers für Produktion
+if (NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-XSS-Protection', '1; mode=block');
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+        next();
+    });
+}
 
 // In-Memory Session Storage (nur für diese Session)
 const sessions = new Map();
@@ -43,6 +55,16 @@ app.get('/oauth/callback', (req, res) => {
     
     const redirectUrl = `/?${params.toString()}`;
     res.redirect(redirectUrl);
+});
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        environment: NODE_ENV,
+        sessions: sessions.size
+    });
 });
 
 // OAuth2 Authorization URL generieren
